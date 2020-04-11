@@ -221,10 +221,16 @@ var download = async (_, _a) => {
 			_c[b] = e(a.path, '_' + c)
 			return Object.assign(a, {path: _c[b]})
 		})
+		var c = 0, f = 'play.m3u8'
+		if(d(f)) {
+			while(d(e(f, '_' + ++c)));
+			f = e(f, '_' + c)
+		}
 		var d = dir + '/' + TC() + '/'
 		await mkdir(d)
 		saveFile(d + 'data.json', JSON.stringify(a))
 		a.tracks = a.tracks.map((a,c) => ([a.file = b[c + 1].path, a, b[c + 1].path = d + b[c + 1].path, c == 0 ? b[c].path = d + b[c].path : 0])[1])
+		saveFile(d + f, '#EXTM3U\n' + Object.keys(a.extensions).map(b => '#EXT-X-' + b + ':' + a.extensions[b]).join('\n') + '\n' + a.tracks.map(a => '#EXTINF:' + a.d.join(',') + ',\n' + a.file).join('\n') + '\n#EXT-X-ENDLIST')
 		saveFile(d + 'download_backup.json', JSON.stringify(b))
 		await download(b, [a._size, d + 'download.json'])
 	}
