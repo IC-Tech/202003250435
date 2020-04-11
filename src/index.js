@@ -4,6 +4,8 @@ const url = require('url')
 const path = require('path')
 const fs = require('fs')
 
+const dir = './Download'
+
 var _op = _ => {
 	_ = typeof _ == 'string' ? ({url: _}) : _
 	_.s = _.url.startsWith('https')
@@ -133,6 +135,11 @@ var read = async _ => {
 	a._size = sizeSt(a.size)
 	return a
 }
+var saveFile = (...a) => {
+	var b = fs.createWriteStream(a[0])
+	b.write(Buffer.from(a[1]))
+	b.close()
+}
 var mkdir = a => new Promise(_ => fs.mkdir(a, async b => {
 	if(!b) return _()
 	if(b.code == 'ENOENT') {
@@ -141,36 +148,39 @@ var mkdir = a => new Promise(_ => fs.mkdir(a, async b => {
 	}
 	throw b
 }))
-var download = async _ => {
+var download = async (_, _a) => {
 	console.log('Start Download.')
-	var a = (_ => ['FullYear', 'Month', 'Date', 'Hours', 'Minutes', 'Seconds'].map(b=>(a => ((a = (_['get' + a]() + (a == 'Month' ? 1 : 0)).toString()).length == 1 ? ('0'+a) : a))(b)).join(''))(new Date())
-	var b = './Download/' + a
-	await mkdir(b)
-	b += '/'
-	await web({url: _.url, fs: b + path.parse(_.url).base})
-	var c = [0, _.size, 0, 1, _.tracks.length, 0]
-	var d = _ => c[0] += _
-	var e = a => new Promise(async _ => {
-		await web({url: a, fs: b + path.parse(a).base, state: d})
-		if(c[2] == 0 && ++c[3] == c[4]) c[2] = 1
-		_()
+	var c = [0, 0, _.length, 0, 0]
+	var d = _ => c[3] += _
+	var e = (a, b) => _[a].state = b
+	var b = _ => new Promise(async a => {
+		try {
+			await web({url: _[0], fs: _[1], state: _[2]})
+			e(_[3], !0)
+		}
+		catch(err) {
+			c[4]++
+			e(_[3], !!0)
+			console.error(err)
+		}
+		if(++c[1] >= c[2]) c[0] = 1
+		a()
 	})
-	var f = []
-	var g = 
-	_.tracks.forEach(a => f.push(e(_.base + a.file)))
+	var f = _.map((a, c) => b([a.link, a.path, d, c]))
 	console.log('0% completed.')
-	f.push(new Promise(_ => {
+	f.push(new Promise(a => {
 		c[5] = setInterval(() => {
-			if(c[2] == 1) {
+			if(c[0] == 1) {
 				console.log('\033[1A\033[K\rDownload completed.')
 				clearInterval(c[5])
-				return _()
+				return a()
 			}
-			console.log('\033[1A\033[K\r' + parseInt((c[3] / c[4]) * 100 * 100) / 100 + '% completed. | ' + sizeSt(c[0]) + '/' + sizeSt(c[1]) + ' | ')
-		}, 1000)
+			console.log('\033[1A\033[K\r' + parseInt((c[1] / c[2]) * 100 * 100) / 100 + '% completed. | ' + sizeSt(c[3]) + '/' + _a[0] + ' | ')
+			saveFile(_a[1], JSON.stringify(_))
+		}, 500)
 	}))
 	await Promise.all(f)
-	console.log(a)
+	console.log(_.length + ' files Downloaded')
 }
 (async _ => {
 	_ = Array.from(process.argv).slice(2)
@@ -180,5 +190,31 @@ var download = async _ => {
 	var a = await read(_[1])
 	console.log(a)
 	if(a.f) return
-	if(_[2] == 1) await download(a)
+	if(_[2] == 1) {
+		var d = a => path.parse(url.parse(a).pathname).base
+		var mod = !!0
+		var b = [
+			{link: a.url, path: d(a.url)},
+			...a.tracks.map(b => ({
+				link: ['http://', 'https://'].some(_ => ([_ = b.file.startsWith(_), mod ? !!0 : mod = _])[0]) ? b.file : a.base + b.file,
+				path: d(b.file)
+			}))
+		]
+		var _c = []
+		d = (a,d) => _c.some((b,c) => a == b)
+		var e = (a, b) => ([a = path.parse(a), a.name + (b || '') + a.ext])[1]
+		b = b.map((a, b) => {
+			if(!d(a.path)) return ([_c.push(a.path), a])[1]
+			var c = 0
+			while(d(e(a.path, '_' + ++c)));
+			_c[b] = e(a.path, '_' + c)
+			return Object.assign(a, {path: _c[b]})
+		})
+		var d = dir + '/' + (_ => ['FullYear', 'Month', 'Date', 'Hours', 'Minutes', 'Seconds'].map(b=>(a => ((a = (_['get' + a]() + (a == 'Month' ? 1 : 0)).toString()).length == 1 ? ('0'+a) : a))(b)).join(''))(new Date()) + '/'
+		await mkdir(d)
+		saveFile(d + 'data.json', JSON.stringify(a))
+		a.tracks = a.tracks.map((a,c) => ([a.file = b[c + 1].path, a, b[c + 1].path = d + b[c + 1].path, c == 0 ? b[c].path = d + b[c].path : 0])[1])
+		saveFile(d + 'download_backup.json', JSON.stringify(b))
+		await download(b, [a._size, d + 'download.json'])
+	}
 })()
