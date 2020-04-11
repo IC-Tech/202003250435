@@ -140,6 +140,15 @@ var saveFile = (...a) => {
 	b.write(Buffer.from(a[1]))
 	b.close()
 }
+var readFile = a => new Promise((_, r) => {
+  a = fs.createReadStream(a)
+  let d = [];
+  a.on('error', e => r(e))
+	a.on('data', a => d.push(a))
+	a.on('close', b => _(Buffer.concat(d)))
+})
+var TC = a => (_ => ['FullYear', 'Month', 'Date', 'Hours', 'Minutes', 'Seconds'].map(b=>(a => ((a = (_['get' + a]() + (a == 'Month' ? 1 : 0)).toString()).length == 1 ? ('0'+a) : a))(b)).join(''))(new Date())
+
 var mkdir = a => new Promise(_ => fs.mkdir(a, async b => {
 	if(!b) return _()
 	if(b.code == 'ENOENT') {
@@ -151,7 +160,7 @@ var mkdir = a => new Promise(_ => fs.mkdir(a, async b => {
 var download = async (_, _a) => {
 	console.log('Start Download.')
 	var c = [0, 0, _.length, 0, 0]
-	var d = _ => c[3] += _
+	var d = _ => c[2] += _
 	var e = (a, b) => _[a].state = b
 	var b = _ => new Promise(async a => {
 		try {
@@ -159,33 +168,35 @@ var download = async (_, _a) => {
 			e(_[3], !0)
 		}
 		catch(err) {
-			c[4]++
+			c[3]++
 			e(_[3], !!0)
 			console.error(err)
 		}
-		if(++c[1] >= c[2]) c[0] = 1
+		c[0]++
 		a()
 	})
-	var f = _.map((a, c) => b([a.link, a.path, d, c]))
+	var f = _.map((a, _) => a.state ? ([null, c[0]++])[0] : b([a.link, a.path, d, _]))
 	console.log('0% completed.')
 	f.push(new Promise(a => {
-		c[5] = setInterval(() => {
-			if(c[0] == 1) {
+		c[4] = setInterval(() => {
+			saveFile(_a[1], JSON.stringify(_))
+			if(c[0] >= c[1]) {
 				console.log('\033[1A\033[K\rDownload completed.')
-				clearInterval(c[5])
+				clearInterval(c[4])
 				return a()
 			}
-			console.log('\033[1A\033[K\r' + parseInt((c[1] / c[2]) * 100 * 100) / 100 + '% completed. | ' + sizeSt(c[3]) + '/' + _a[0] + ' | ')
-			saveFile(_a[1], JSON.stringify(_))
+			console.log('\033[1A\033[K\r' + parseInt((c[0] / c[1]) * 100 * 100) / 100 + '% completed. | ' + sizeSt(c[2]) + '/' + _a[0] + ' | ')
 		}, 500)
 	}))
 	await Promise.all(f)
-	console.log(_.length + ' files Downloaded')
+	console.log(`${_.length} files, ${sizeSt(c[2])} Downloaded`)
 }
 (async _ => {
 	_ = Array.from(process.argv).slice(2)
 	if(_.length >= 2 && (_[0] = _[0].toLowerCase()) == 'check') _[2] = 0
 	else if(_.length >= 2 && _[0] == 'download') _[2] = 1
+	else if(_.length >= 2 && _[0] == 'resume')
+		return await download(JSON.parse((await readFile(_[1])).toString()), ['Unknown', path.parse(_[1]).dir + '/download-' + TC() + '.json'])
 	else return console.log('invalid command')
 	var a = await read(_[1])
 	console.log(a)
@@ -210,7 +221,7 @@ var download = async (_, _a) => {
 			_c[b] = e(a.path, '_' + c)
 			return Object.assign(a, {path: _c[b]})
 		})
-		var d = dir + '/' + (_ => ['FullYear', 'Month', 'Date', 'Hours', 'Minutes', 'Seconds'].map(b=>(a => ((a = (_['get' + a]() + (a == 'Month' ? 1 : 0)).toString()).length == 1 ? ('0'+a) : a))(b)).join(''))(new Date()) + '/'
+		var d = dir + '/' + TC() + '/'
 		await mkdir(d)
 		saveFile(d + 'data.json', JSON.stringify(a))
 		a.tracks = a.tracks.map((a,c) => ([a.file = b[c + 1].path, a, b[c + 1].path = d + b[c + 1].path, c == 0 ? b[c].path = d + b[c].path : 0])[1])
